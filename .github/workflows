@@ -1,1 +1,60 @@
+name: 'workflow'
+on:
+  push:
+    branches:
+      - main
 
+jobs:
+  test-update-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Update values.yaml
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: 'file.yaml'
+          propertyPath: 'file.version'
+          value: v1.0.1
+          commitChange: false
+
+env:
+  IMAGE_NAME: image
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build app image
+        run: docker build . --tag image
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Push app image
+        id: image
+        run: |
+          IMAGE_ID=docker.pkg.github.com/${{ github.repository }}/$FILES_IMAGE_NAME
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "main" ] && VERSION=$(echo ${{ github.sha }} | cut -c1-8)
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker tag image $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+          echo "::set-output name=version::$VERSION"
+
+      - name: Update Image Version in the related HelmChart values.yaml
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: 'deployment/helm/values.yaml'
+          propertyPath: 'backend.version'
+          value: ${{ steps.image.outputs.version }}
+          branch: deployment/${{ steps.image.outputs.version }}
+          targetBranch: development
+          createPR: true
+          message: 'Update Image Version to ${{ steps.image.outputs.version }}' 
