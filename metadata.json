@@ -1,0 +1,6 @@
+{
+  "name": "PokéBid",
+  "description": "Premium Pokémon TCG Online Auction System with filters, detailed cards, real-time-like updates, and safe bidding mechanism.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
